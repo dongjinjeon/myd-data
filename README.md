@@ -77,7 +77,7 @@ main.py에 등록된 scheduler에서 매주 일요일 자정에 일주일 이전
 ## API request sample
 ```
 # Shopping 전처리 API request sample
-http://localhost:9090/preprocess/shopping?user_id=some_unisque_user_id&proposal_id=some_unique_proposal_id&file_name=/myd_sample.json
+GET) http://localhost:9090/preprocess/shopping?user_id=some_unisque_user_id&proposal_id=some_unique_proposal_id&file_name=/myd_sample.json
 
 # Response sample
 {
@@ -106,7 +106,21 @@ http://localhost:9090/preprocess/shopping?user_id=some_unisque_user_id&proposal_
 
 
 # JSON to CSV 변환 API sample 
-http://localhost:9090/convert_to_excel?file_name=/app/data/encrypted.myd_sample.json&aes256cbckey=aeskeystring&iv=ivstring
+POST) http://localhost:9090/convert_to_excel
+
+# Request sample
+{
+    "file_names": [
+        '/app/data/encrypted.myd_sample_1.json',
+        '/app/data/encrypted.myd_sample_2.json',
+        '/app/data/encrypted.myd_sample_3.json',
+        '/app/data/encrypted.myd_sample_4.json',
+    ],
+    "output_file_name": "csv_file_name",
+    "merge": True,
+    "aes256cbckey": "894d2fce882339606bf0788d5576843f0b9773ff6b1f8f8a5a9290cc876155a7",
+    "iv": "624cce1ae8d045fe4f3c6869f728ead3"
+}
 
 # Response sample
 {
@@ -117,7 +131,7 @@ http://localhost:9090/convert_to_excel?file_name=/app/data/encrypted.myd_sample.
 
 
 # JSON to CSV 변환 작업 상태 조회 API sample
-http://localhost:9090/convert_to_csv/status?job_id=8c2ff636-d421-4c61-9e13-42f22ccdcf48
+GET) http://localhost:9090/convert_to_csv/status?job_id=8c2ff636-d421-4c61-9e13-42f22ccdcf48
 
 # Response sample 1
 {
