@@ -104,27 +104,55 @@ class ShoppingAnalysisRoute(Resource):
         data = analysis.run()
         return set_res(data)
 
-@ns_convert_to_csv.route('')
-@ns_convert_to_csv.doc(params={
-    'file_name': {'in': 'query', 'description': 'Docker /data 디렉토리에 바인딩된 폴더 하위의 파일명을 포함한 분석 대상 파일 경로', 'required': 'true', 'type': 'string', 'default': '/app/data/encrypted.myd_sample.json'},
-    'aes256cbckey': {'in': 'query', 'description': '파일 복호화 key', 'required': 'true', 'type': 'string', 'default': '894d2fce882339606bf0788d5576843f0b9773ff6b1f8f8a5a9290cc876155a7'},
-    'iv': {'in': 'query', 'description': '파일 복호화 iv', 'required': 'true', 'type': 'string', 'default': '624cce1ae8d045fe4f3c6869f728ead3'}
+ns_convert_to_csv_model = ns_convert_to_csv.model('ConverToCSV', {
+    'file_names': fields.List(
+        fields.String,
+        required=True,
+        description='Docker /data 디렉토리에 바인딩된 폴더 하위의 파일명을 포함한 분석 대상 파일 경로',
+        default=['/app/data/encrypted.myd_sample_1.json', '/app/data/encrypted.myd_sample_2.json', '/app/data/encrypted.myd_sample_3.json', '/app/data/encrypted.myd_sample_4.json']
+    ),
+    'output_file_name': fields.String(
+        required=False,
+        description='저장할 csv 파일명 (확장자 제외)',
+        default='encrypted.myd_sample'
+    ),
+    'merge': fields.Boolean(
+        required=False,
+        description='csv 파일을 통합할지, file_names에 맞춰 분할할지 여부(True: ouput_file_name으로 단일 csv 파일 생성, False: file_names의 개수만큼 csv 생성)',
+        default=True
+    ),
+    'aes256cbckey': fields.String(
+        required=True,
+        description='파일 복호화 key',
+        default='894d2fce882339606bf0788d5576843f0b9773ff6b1f8f8a5a9290cc876155a7'
+    ),
+    'iv': fields.String(
+        required=True,
+        description='파일 복호화 iv',
+        default='624cce1ae8d045fe4f3c6869f728ead3'
+    )
 })
+@ns_convert_to_csv.route('')
 class ConvertToCSVRoute(Resource):
-    def get(self):
+    @ns_convert_to_csv.doc('convertToCSV_doc', body=ns_convert_to_csv_model)
+    def post(self):
         """저장된 JSON 파일을 추출하여 전처리 후 CSV로 변환하여 저장합니다."""
         job_id = str(uuid.uuid4())
 
         try:
-            file_name = request.args.get('file_name')
-            aes256cbckey = request.args.get('aes256cbckey')
-            iv = request.args.get('iv')
-            if file_name is not None and not file_name.startswith('/'):
-                file_name = '/' + file_name
-        except:
-            raise Exception('Wrong query parameter.')
+            body = request.get_json()
+            file_names = body['file_names']
+            aes256cbckey = body['aes256cbckey']
+            iv = body['iv']
 
-        convert_to_csv = ConvertToCSV(file_name, aes256cbckey, iv, job_id)
+            # merge default 값으로 True 세팅
+            merge = body['merge'] if 'merge' in body else True
+            # output_file_name default 값으로 file_names 첫번째 파일명 세팅
+            output_file_name = body['output_file_name'] if 'output_file_name' in body else file_names[0].split('/')[len(file_names[0].split('/')) - 1].split('.json')[0]
+        except:
+            raise Exception('Wrong request body.')
+
+        convert_to_csv = ConvertToCSV(file_names, aes256cbckey, iv, job_id, output_file_name, merge)
         convert_to_csv.update_status('WORKING', '')
 
         # API response 후에 작업은 thread로 백그라운드에서 별도로 수행
@@ -136,7 +164,6 @@ class ConvertToCSVRoute(Resource):
 
 def background_task(convert_to_csv):
     convert_to_csv.start()
-
 
 @ns_convert_to_csv.route('/status')
 @ns_convert_to_csv.doc(params={

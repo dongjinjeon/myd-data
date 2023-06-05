@@ -12,17 +12,20 @@ import sqlite3
 from pathlib import Path
 import traceback
 from datetime import datetime
+import gc
 
 WORKING = "WORKING"
 DONE = "DONE"
 FAILED = "FAILED"
 
 class ConvertToCSV:
-    def __init__(self, file_name, key, iv, job_id):
+    def __init__(self, file_names, key, iv, job_id, output_file_name, merge):
         self.job_id = job_id
 
-        self.file_name = file_name
-        # self.file_name = './data/merge_total_20230509.json'         # for test
+        self.file_names = file_names
+        self.current_file_name = self.file_names[0]
+        self.output_file_name = output_file_name
+        self.merge = merge
 
         self.key = key
         self.iv = iv
@@ -410,12 +413,12 @@ class ConvertToCSV:
         return ujson.loads(decoded)
         # return ujson.load(file)                       # for test
 
-    def read_json_size(self):
-        with open(self.file_name, 'rb') as file:
+    def read_json_size(self, file_name):
+        with open(file_name, 'rb') as file:
             return len(self.read_file(file))
 
-    def read_json_file(self, split_times, sep_size, idx):
-        with open(self.file_name, 'rb') as file:
+    def read_json_file(self, file_name, split_times, sep_size, idx):
+        with open(file_name, 'rb') as file:
             start_idx = idx*sep_size
             end_idx = (idx + 1) * sep_size
             data = self.read_file(file)[start_idx:end_idx] if idx < split_times-1 else self.read_file(file)[start_idx:]
@@ -599,9 +602,11 @@ class ConvertToCSV:
                                 row_obj_keyword['use_type'] = keyword.get('subType', None)
 
                                 raw_data_list[self.SCHEME['KEYWORD_ENGINE']].append(row_obj_keyword)
+                                del row_obj_keyword
                         else:
                             # Keyword 정보 없는 케이스
                             raw_data_list[self.SCHEME['KEYWORD_ENGINE']].append(row_obj_data)
+                            del row_obj_data
 
                     elif self.SCHEME['MEDICAL_RECORD'] == scheme:
                         row_obj_data = pickle.loads(pickle.dumps(row_obj))
@@ -628,9 +633,11 @@ class ConvertToCSV:
                                 row_obj_medicine['medicine_num_prescriptions'] = medicine.get('numberOfPrescriptions', None)
 
                                 raw_data_list[self.SCHEME['MEDICAL_RECORD']].append(row_obj_medicine)
+                                del row_obj_medicine
                         else:
                             # medicine정보 없는 케이스
                             raw_data_list[self.SCHEME['MEDICAL_RECORD']].append(row_obj_data)
+                            del row_obj_data
 
                     elif self.SCHEME['MEDICAL_CHECKUP'] == scheme:
                         row_obj_data = pickle.loads(pickle.dumps(row_obj))
@@ -671,6 +678,7 @@ class ConvertToCSV:
                                 row_obj_reference['osteoporosis'] = reference.get('osteoporosis', None)
 
                                 raw_data_list[self.SCHEME['MEDICAL_CHECKUP']].append(row_obj_reference)
+                                del row_obj_reference
 
                             for preview in previews:
                                 row_obj_preview = pickle.loads(pickle.dumps(row_obj_checkup))
@@ -705,6 +713,7 @@ class ConvertToCSV:
                                 row_obj_preview['judgement'] = preview.get('judgement', None)
 
                                 raw_data_list[self.SCHEME['MEDICAL_CHECKUP']].append(row_obj_preview)
+                                del row_obj_preview
 
                         if self.has_array('results', data):
                             results = data['results']
@@ -723,6 +732,7 @@ class ConvertToCSV:
                                     row_obj_checkup_result['original_data'] = result.get('originalData', None)
 
                                     raw_data_list[self.SCHEME['MEDICAL_CHECKUP']].append(row_obj_checkup_result)
+                                    del row_obj_checkup_result
 
                                 elif (result.get('type') == '1') or (result.get('type') == '2'):
                                     row_obj_data = pickle.loads(pickle.dumps(row_obj))
@@ -792,8 +802,10 @@ class ConvertToCSV:
                                                         row_obj_infant_sub_checkup['remark'] = infant_sub_checkup.get('remark', None)
 
                                                         raw_data_list['MEDICAL_CHECKUP_INFANT'].append(row_obj_infant_sub_checkup)
+                                                        del row_obj_infant_sub_checkup
                                             else:
                                                 raw_data_list['MEDICAL_CHECKUP_INFANT'].append(row_obj_infant_result)
+                                                del row_obj_infant_result
 
                     elif self.SCHEME['FP_STOCK'] == scheme:
                         row_obj_data = pickle.loads(pickle.dumps(row_obj))
@@ -811,10 +823,11 @@ class ConvertToCSV:
                                 row_obj_account = pickle.loads(pickle.dumps(row_obj_data))
                                 total_data_account = self.find_stock_account(row_obj_account, account)
                                 raw_data_list[self.SCHEME['FP_STOCK']].extend(total_data_account)
-
+                                del total_data_account
                         else:
                             # accounts 데이터가 없는 경우
                             raw_data_list[self.SCHEME['FP_STOCK']].append(row_obj_data)
+                            del row_obj_data
 
                     elif self.SCHEME['FP_STOCK_ACCOUNT'] == scheme:
                         row_obj_data = pickle.loads(pickle.dumps(row_obj))
@@ -823,6 +836,7 @@ class ConvertToCSV:
 
                         total_data_account = self.find_stock_account(row_obj_data, data)
                         raw_data_list[self.SCHEME['FP_STOCK']].extend(total_data_account)
+                        del total_data_account
 
                     # FP_BANK
                     elif self.SCHEME['FP_BANK'] == scheme:
@@ -841,10 +855,12 @@ class ConvertToCSV:
                                 row_obj_account = pickle.loads(pickle.dumps(row_obj_data))
                                 total_data_account = self.find_bank_account(row_obj_account, account)
                                 raw_data_list[self.SCHEME['FP_BANK']].extend(total_data_account)
+                                del total_data_account
 
                         else:
                             # accounts 데이터가 없는 경우
                             raw_data_list[self.SCHEME['FP_BANK']].append(row_obj_data)
+                            del row_obj_data
 
                     elif self.SCHEME['FP_BANK_ACCOUNT'] == scheme:
                         row_obj_data = pickle.loads(pickle.dumps(row_obj))
@@ -853,6 +869,7 @@ class ConvertToCSV:
 
                         total_data_account = self.find_bank_account(row_obj_data, data)
                         raw_data_list[self.SCHEME['FP_BANK']].extend(total_data_account)
+                        del total_data_account
 
                     # FP_CARD
                     elif self.SCHEME['FP_CARD'] == scheme:
@@ -871,10 +888,11 @@ class ConvertToCSV:
                                 row_obj_account = pickle.loads(pickle.dumps(row_obj_data))
                                 total_data_account = self.find_card_account(row_obj_account, account)
                                 raw_data_list[self.SCHEME['FP_CARD']].extend(total_data_account)
-
+                                del total_data_account
                         else:
                             # accounts 데이터가 없는 경우
                             raw_data_list[self.SCHEME['FP_CARD']].append(row_obj_data)
+                            del row_obj_data
 
                     elif self.SCHEME['FP_CARD_ACCOUNT'] == scheme:
                         row_obj_data = pickle.loads(pickle.dumps(row_obj))
@@ -883,6 +901,7 @@ class ConvertToCSV:
 
                         total_data_account = self.find_card_account(row_obj_data, data)
                         raw_data_list[self.SCHEME['FP_CARD']].extend(total_data_account)
+                        del total_data_account
 
                     # FP_INSURANCE
                     elif self.SCHEME['FP_INSURANCE'] == scheme:
@@ -903,15 +922,18 @@ class ConvertToCSV:
                                 row_obj_contract = pickle.loads(pickle.dumps(row_obj_data))
                                 total_data_contract = self.find_insurance_contract(row_obj_contract, contract, self.SCHEME['FP_INSURANCE_CONTRACT'])
                                 raw_data_list[self.SCHEME['FP_INSURANCE']].extend(total_data_contract)
+                                del total_data_contract
 
                             for carContract in carContracts:
                                 row_obj_contract = pickle.loads(pickle.dumps(row_obj_data))
                                 total_data_contract = self.find_insurance_contract(row_obj_contract, carContract, self.SCHEME['FP_INSURANCE_CAR_CONTRACT'])
                                 raw_data_list[self.SCHEME['FP_INSURANCE']].extend(total_data_contract)
+                                del total_data_contract
 
                         else:
                             # contracts, carContracts 데이터가 모두 없는 경우
                             raw_data_list[self.SCHEME['FP_INSURANCE']].append(row_obj_data)
+                            del row_obj_data
 
                     elif self.SCHEME['FP_INSURANCE_CONTRACT'] == scheme or self.SCHEME['FP_INSURANCE_CAR_CONTRACT'] == scheme:
                         row_obj_data = pickle.loads(pickle.dumps(row_obj))
@@ -920,6 +942,7 @@ class ConvertToCSV:
 
                         total_data_contract = self.find_insurance_contract(row_obj_data, data, scheme)
                         raw_data_list[self.SCHEME['FP_INSURANCE']].extend(total_data_contract)
+                        del total_data_contract
 
                     elif self.SCHEME['USERINFO'] != scheme:
                         unidentified_data.append(data)
@@ -932,6 +955,7 @@ class ConvertToCSV:
 
         if len(unidentified_data_obj['payload']['data']) > 0:
             raw_data_list['UNIDENTIFIED'].append(unidentified_data_obj)
+            del unidentified_data_obj
 
         return raw_data_list
 
@@ -957,14 +981,19 @@ class ConvertToCSV:
 
     def start(self):
         try:
-            self.run()
+            for file_name in self.file_names:
+                self.run(file_name)
             self.update_status(DONE, '')
         except Exception:
             self.update_status(FAILED, traceback.format_exc())
+        finally:
+            gc.collect()
 
-    def run(self):
+    def run(self, file_name):
+        self.current_file_name = file_name
+
         # json 사이즈 read
-        json_size = self.read_json_size()
+        json_size = self.read_json_size(file_name)
 
         # config 단위로 분할 개수 정해서 read 할때 전달
         sep_size = CONF['FILE_SEP_SIZE']
@@ -985,7 +1014,8 @@ class ConvertToCSV:
             }
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                future_to_data = {executor.submit(self.extract_json, json_data): json_data for json_data in self.read_json_file(split_times, sep_size, idx)}
+                json_file = self.read_json_file(file_name, split_times, sep_size, idx)
+                future_to_data = {executor.submit(self.extract_json, json_data): json_data for json_data in json_file}
                 for future in concurrent.futures.as_completed(future_to_data):
                     raw = future.result()
                     raw_data_list[self.SCHEME['OPENMARKET']] += raw[self.SCHEME['OPENMARKET']]
@@ -999,49 +1029,52 @@ class ConvertToCSV:
                     raw_data_list[self.SCHEME['FP_INSURANCE']] += raw[self.SCHEME['FP_INSURANCE']]
                     raw_data_list['UNIDENTIFIED'] += raw['UNIDENTIFIED']
 
-            self.preprocess(raw_data_list, idx)
+                    del raw
+                del json_file
 
-    def preprocess(self, raw_data_list, idx):
+            self.preprocess(raw_data_list)
+
+    def preprocess(self, raw_data_list):
         raw_data_shopping = raw_data_list[self.SCHEME['OPENMARKET']]
         if len(raw_data_shopping) > 0:
-            self.preprocess_shopping(raw_data_shopping, idx)
+            self.preprocess_shopping(raw_data_shopping)
 
         raw_data_search = raw_data_list[self.SCHEME['KEYWORD_ENGINE']]
         if len(raw_data_search) > 0:
-            self.preprocess_search(raw_data_search, idx)
+            self.preprocess_search(raw_data_search)
 
         raw_data_med_record = raw_data_list[self.SCHEME['MEDICAL_RECORD']]
         if len(raw_data_med_record) > 0:
-            self.preprocess_med_record(raw_data_med_record, idx)
+            self.preprocess_med_record(raw_data_med_record)
 
         raw_data_med_checkup = raw_data_list[self.SCHEME['MEDICAL_CHECKUP']]
         if len(raw_data_med_checkup) > 0:
-            self.preprocess_med_checkup(raw_data_med_checkup, idx)
+            self.preprocess_med_checkup(raw_data_med_checkup)
 
         raw_data_med_checkup_infant = raw_data_list['MEDICAL_CHECKUP_INFANT']
         if len(raw_data_med_checkup_infant) > 0:
-            self.preprocess_med_checkup_infant(raw_data_med_checkup_infant, idx)
+            self.preprocess_med_checkup_infant(raw_data_med_checkup_infant)
 
         raw_data_fp_stock = raw_data_list[self.SCHEME['FP_STOCK']]
         if len(raw_data_fp_stock) > 0:
-            self.preprocess_fp_stock(raw_data_fp_stock, idx)
+            self.preprocess_fp_stock(raw_data_fp_stock)
 
         raw_data_fp_bank = raw_data_list[self.SCHEME['FP_BANK']]
         if len(raw_data_fp_bank) > 0:
-            self.preprocess_fp_bank(raw_data_fp_bank, idx)
+            self.preprocess_fp_bank(raw_data_fp_bank)
 
         raw_data_fp_card = raw_data_list[self.SCHEME['FP_CARD']]
         if len(raw_data_fp_card) > 0:
-            self.preprocess_fp_card(raw_data_fp_card, idx)
+            self.preprocess_fp_card(raw_data_fp_card)
 
         raw_data_fp_insurance = raw_data_list[self.SCHEME['FP_INSURANCE']]
         if len(raw_data_fp_insurance) > 0:
-            self.preprocess_fp_insurance(raw_data_fp_insurance, idx)
+            self.preprocess_fp_insurance(raw_data_fp_insurance)
 
         unidentified_data = raw_data_list['UNIDENTIFIED']
         if len(unidentified_data) > 0:
-            prefix = self.file_name.split('/')[len(self.file_name.split('/'))-1].split('.json')[0]
-            file_path = f'{self.output_dir}/{prefix}_unidentified_data.json'
+            file_name = self.get_current_file_name()
+            file_path = f'{self.output_dir}/{file_name}_unidentified_data.json'
 
             fp = Path(file_path)
             if fp.is_file():
@@ -1053,6 +1086,9 @@ class ConvertToCSV:
 
             with open(file_path, 'w', encoding='utf-8') as fp:
                 ujson.dump(data, fp, ensure_ascii=False)
+                del unidentified_data
+
+        del raw_data_list
 
     def set_gender(self, df):
         df['user_gender'] = df['user_gender'].apply(lambda x: ('F' if int(x) == 0 else ('M' if int(x) == 1 else x)) if isinstance(x, int) else x)
@@ -1064,7 +1100,7 @@ class ConvertToCSV:
             col = col.replace('  ', '')
         return col
 
-    def preprocess_fp_bank(self, raw_data_fp_bank, idx):
+    def preprocess_fp_bank(self, raw_data_fp_bank):
         bank = self.to_dataframe(raw_data_fp_bank)
 
         # STEP1. data_type 컬럼(데이터 종류를 바로 알 수 있는 정보) 추가
@@ -1093,9 +1129,9 @@ class ConvertToCSV:
         bank = bank.sort_values(by=['user_id'])
         bank = bank.reset_index(drop=True)
 
-        self.export_csv(bank, self.SCHEME['FP_BANK'], idx)
+        self.export_csv(bank, self.SCHEME['FP_BANK'])
 
-    def preprocess_fp_card(self, raw_data_fp_card, idx):
+    def preprocess_fp_card(self, raw_data_fp_card):
         card = self.to_dataframe(raw_data_fp_card)
 
         # STEP1. data_type 컬럼(데이터 종류를 바로 알 수 있는 정보) 추가
@@ -1123,9 +1159,9 @@ class ConvertToCSV:
         card = card.sort_values(by=['user_id'])
         card = card.reset_index(drop=True)
 
-        self.export_csv(card, self.SCHEME['FP_CARD'], idx)
+        self.export_csv(card, self.SCHEME['FP_CARD'])
 
-    def preprocess_fp_insurance(self, raw_data_fp_insurance, idx):
+    def preprocess_fp_insurance(self, raw_data_fp_insurance):
         insurance = self.to_dataframe(raw_data_fp_insurance)
 
         # STEP1. data_type 컬럼(데이터 종류를 바로 알 수 있는 정보) 추가
@@ -1155,9 +1191,9 @@ class ConvertToCSV:
         insurance = insurance.sort_values(by=['user_id'])
         insurance = insurance.reset_index(drop=True)
 
-        self.export_csv(insurance, self.SCHEME['FP_INSURANCE'], idx)
+        self.export_csv(insurance, self.SCHEME['FP_INSURANCE'])
 
-    def preprocess_fp_stock(self, raw_data_fp_stock, idx):
+    def preprocess_fp_stock(self, raw_data_fp_stock):
         stock = self.to_dataframe(raw_data_fp_stock)
 
         # STEP1. data_type 컬럼(데이터 종류를 바로 알 수 있는 정보) 추가
@@ -1184,9 +1220,9 @@ class ConvertToCSV:
         stock = stock.sort_values(by=['user_id'])
         stock = stock.reset_index(drop=True)
 
-        self.export_csv(stock, self.SCHEME['FP_STOCK'], idx)
+        self.export_csv(stock, self.SCHEME['FP_STOCK'])
 
-    def preprocess_med_checkup_infant(self, raw_data_med_checkup_infant, idx):
+    def preprocess_med_checkup_infant(self, raw_data_med_checkup_infant):
         checkup_infant = self.to_dataframe(raw_data_med_checkup_infant)
 
         # 아동 검진결과 데이터 전처리
@@ -1222,9 +1258,9 @@ class ConvertToCSV:
         checkup_infant = checkup_infant.sort_values(by=['user_id'])
         checkup_infant = checkup_infant.reset_index(drop=True)
 
-        self.export_csv(checkup_infant, self.SCHEME['MEDICAL_CHECKUP']+'_infant', idx)
+        self.export_csv(checkup_infant, self.SCHEME['MEDICAL_CHECKUP']+'_infant')
 
-    def preprocess_med_checkup(self, raw_data_med_checkup, idx):
+    def preprocess_med_checkup(self, raw_data_med_checkup):
         checkup_adult = self.to_dataframe(raw_data_med_checkup)
 
         # 성인 검진결과 데이터 전처리
@@ -1254,9 +1290,9 @@ class ConvertToCSV:
         checkup_adult = checkup_adult.sort_values(by=['user_id'])
         checkup_adult = checkup_adult.reset_index(drop=True)
 
-        self.export_csv(checkup_adult, self.SCHEME['MEDICAL_CHECKUP']+'_general', idx)
+        self.export_csv(checkup_adult, self.SCHEME['MEDICAL_CHECKUP']+'_general')
 
-    def preprocess_med_record(self, raw_data_med_record, idx):
+    def preprocess_med_record(self, raw_data_med_record):
         record = self.to_dataframe(raw_data_med_record)
 
         # STEP1. data_type 컬럼(데이터 종류를 바로 알 수 있는 정보) 추가
@@ -1277,9 +1313,9 @@ class ConvertToCSV:
         record = record.sort_values(by=['user_id'])
         record = record.reset_index(drop=True)
 
-        self.export_csv(record, self.SCHEME['MEDICAL_RECORD'], idx)
+        self.export_csv(record, self.SCHEME['MEDICAL_RECORD'])
 
-    def preprocess_search(self, raw_data_search, idx):
+    def preprocess_search(self, raw_data_search):
         search = self.to_dataframe(raw_data_search)
 
         # 검색데이터 전처리
@@ -1302,9 +1338,9 @@ class ConvertToCSV:
         search = search.sort_values(by=['user_id'])
         search = search.reset_index(drop=True)
 
-        self.export_csv(search, self.SCHEME['KEYWORD_ENGINE'], idx)
+        self.export_csv(search, self.SCHEME['KEYWORD_ENGINE'])
 
-    def preprocess_shopping(self, raw_data_shopping, idx):
+    def preprocess_shopping(self, raw_data_shopping):
         shopping = self.to_dataframe(raw_data_shopping)
 
         # option 일괄 처리
@@ -1336,24 +1372,27 @@ class ConvertToCSV:
         shopping = shopping.sort_values(by=['user_id'])
         shopping = shopping.reset_index(drop=True)
 
-        self.export_csv(shopping, self.SCHEME['OPENMARKET'], idx)
+        self.export_csv(shopping, self.SCHEME['OPENMARKET'])
 
-    def export_csv(self, df, scheme, idx):
-        prefix = self.file_name.split('/')[len(self.file_name.split('/'))-1].split('.json')[0]
+    def get_current_file_name(self):
+        return self.output_file_name if self.merge else self.current_file_name.split('/')[len(self.current_file_name.split('/')) - 1].split('.json')[0]
 
-        res = self.check_file_row(scheme)
+    def export_csv(self, df, scheme):
+        file_name = self.get_current_file_name()
+        file_num = 0
+
+        res = self.check_file_row(scheme, file_name)
         # 앞에서 수행된 적이 없다면
         if res is None:
-            file_name, saved_row_count = self.seperate_file_by_max_unit(df, prefix, scheme, 0)
+            saved_row_count, file_num = self.seperate_file_by_max_unit(df, file_name, scheme, file_num)
         else:
-            last_file_name, row_count = res
+            file_name, scheme, file_num, row_count = res
 
             # if 앞의 row와 현재 df의 row 합이 max_row 미만이면 앞의 파일 열어서 저장
             current_rows = len(df.index)
             if row_count + current_rows <= CONF['MAX_CSV_ROW']:
-                file_path = f'{self.output_dir}/{last_file_name}'
+                file_path = f'{self.output_dir}/{file_name}_{scheme}_{str(file_num)}'
                 df.to_csv(f'{file_path}.csv', mode='a', header=False, sep=',', na_rep='', quoting=csv.QUOTE_ALL, index=False, encoding="utf-8-sig")
-                file_name = last_file_name
                 saved_row_count = current_rows + row_count
 
             # else 앞의 파일 채우고 나머지는 새 파일에 저장
@@ -1364,16 +1403,15 @@ class ConvertToCSV:
                 first_half = df[0:split_size]
                 second_half = df[split_size:]
 
-                file_path = f'{self.output_dir}/{last_file_name}'
+                file_path = f'{self.output_dir}/{file_name}_{scheme}_{str(file_num)}'
                 first_half.to_csv(f'{file_path}.csv', mode='a', header=False, sep=',', na_rep='', quoting=csv.QUOTE_ALL, index=False, encoding="utf-8-sig")
 
-                last_file_idx = last_file_name.split('_')[len(last_file_name.split('_'))-1]
-                file_name, saved_row_count = self.seperate_file_by_max_unit(second_half, prefix, scheme, int(last_file_idx))
+                saved_row_count, file_num = self.seperate_file_by_max_unit(second_half, file_name, scheme, file_num)
 
-        self.set_csv_rows(scheme, file_name, saved_row_count)
+        self.set_csv_rows(scheme, file_name, file_num, saved_row_count)
+        del df
 
-    def seperate_file_by_max_unit(self, df, prefix, scheme, last_file_idx):
-        file_name = ''
+    def seperate_file_by_max_unit(self, df, file_name, scheme, file_num):
         df_sep = df
 
         # 현재 df의 크기가 max_row를 넘는다면 분할해서 저장
@@ -1386,29 +1424,31 @@ class ConvertToCSV:
             else:
                 df_sep = df[i * CONF['MAX_CSV_ROW']:(i + 1) * CONF['MAX_CSV_ROW']]
 
-            file_name = f'{prefix}_{scheme}_{last_file_idx + i + 1}'
-            file_path = f'{self.output_dir}/{file_name}'
+            file_num += 1
+            file_path = f'{self.output_dir}/{file_name}_{scheme}_{file_num}'
             df_sep.to_csv(f'{file_path}.csv', sep=',', na_rep='', quoting=csv.QUOTE_ALL, index=False, encoding="utf-8-sig")
 
-        return file_name, len(df_sep)
+        return len(df_sep), file_num
 
-    def check_file_row(self, scheme):
+    def check_file_row(self, scheme, file_name):
         conn = sqlite3.connect(CONF['CSV_STATUS_DB'])
         c = conn.cursor()
-        c.execute("""select file_name, row_count from csv_rows 
+        c.execute("""select file_name, scheme, file_num, row_count from csv_rows 
                         where job_id = ? 
-                        and scheme = ?""", [self.job_id, scheme])
+                        and scheme = ?
+                        and file_name = ?
+                        order by file_num desc""", [self.job_id, scheme, file_name])
         res = c.fetchone()
         c.close()
         conn.close()
         return res
 
-    def set_csv_rows(self, scheme, file_name, row_count):
+    def set_csv_rows(self, scheme, file_name, file_num, row_count):
         conn = sqlite3.connect(CONF['CSV_STATUS_DB'])
         c = conn.cursor()
         current_datetime = datetime.now()
-        c.execute("""INSERT OR REPLACE INTO csv_rows (job_id, scheme, file_name, row_count, update_datetime) 
-                        VALUES (?, ?, ?, ?, ?);""", [self.job_id, scheme, file_name, row_count, current_datetime])
+        c.execute("""INSERT OR REPLACE INTO csv_rows (job_id, scheme, file_name, file_num, row_count, update_datetime) 
+                        VALUES (?, ?, ?, ?, ?, ?);""", [self.job_id, scheme, file_name, file_num, row_count, current_datetime])
         conn.commit()
         c.close()
         conn.close()
@@ -1420,6 +1460,7 @@ class ConvertToCSV:
         df = pd.DataFrame(list)
         df = df.astype('object')
         df = df.where(pd.notnull(df), None)
+        del list
         return df
 
     def find_stock_account(self, row_obj_account, account):
