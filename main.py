@@ -36,6 +36,9 @@ api.add_namespace(ns_shopping_analysis)
 ns_convert_to_csv = Namespace('convert_to_csv', description='JSON 데이터를 CSV로 변환하여 저장하는 API')
 api.add_namespace(ns_convert_to_csv)
 
+ns_version = Namespace('version', description='Server version')
+api.add_namespace(ns_version)
+
 shopping_prc_res_fields = ns_shopping_preprocess.model('Shopping preprocess response', {  # Model 객체 생성
     'data': fields.Nested(ns_shopping_preprocess.model('data', {
         'months': fields.List(fields.String(description='Month', required=True, example="08")),
@@ -184,6 +187,13 @@ class ConvertToCSVStatusRoute(Resource):
             status, msg, job_start_time = res
 
         return set_res({"job_id": job_id, "status": status, "msg": msg, "job_start_time": job_start_time})
+
+@ns_version.route('')
+@ns_version.doc()
+class VersionRoute(Resource):
+    def get(self):
+        # return set_res({"version": "1.0.0 (2023.06.05)"})
+        return "1.0.0 (2023.06.05)"
 
 def set_res(data):
     body = json.dumps({
