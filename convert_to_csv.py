@@ -960,6 +960,7 @@ class ConvertToCSV:
         return raw_data_list
 
     def update_status(self, status, fail_log):
+       
         conn = sqlite3.connect(CONF['CSV_STATUS_DB'])
         c = conn.cursor()
         current_datetime = datetime.now()
@@ -1431,6 +1432,7 @@ class ConvertToCSV:
         return len(df_sep), file_num
 
     def check_file_row(self, scheme, file_name):
+        try:
         conn = sqlite3.connect(CONF['CSV_STATUS_DB'])
         c = conn.cursor()
         c.execute("""select file_name, scheme, file_num, row_count from csv_rows 
@@ -1442,8 +1444,15 @@ class ConvertToCSV:
         c.close()
         conn.close()
         return res
+        except sqlite3.Error as error:
+        print('*** Failed to execute a query.', error)
+        finally:
+        if conn:
+            conn.close()
+            print('SQLite connection is closed') 
 
     def set_csv_rows(self, scheme, file_name, file_num, row_count):
+        try:
         conn = sqlite3.connect(CONF['CSV_STATUS_DB'])
         c = conn.cursor()
         current_datetime = datetime.now()
@@ -1452,6 +1461,12 @@ class ConvertToCSV:
         conn.commit()
         c.close()
         conn.close()
+        except sqlite3.Error as error:
+        print('*** Failed to execute a query.', error)
+        finally:
+        if conn:
+            conn.close()
+            print('SQLite connection is closed')
 
     def has_array(self, key, arr):
         return key in arr and len(arr[key]) > 0

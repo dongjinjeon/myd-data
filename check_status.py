@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 class CheckStatus:
     def get_current_status(self, job_id):
+        try:
         conn = sqlite3.connect(CONF['CSV_STATUS_DB'])
         c = conn.cursor()
         c.execute("""select status, fail_log, cast(strftime('%s', create_datetime) as int) as job_start_time from job_status 
@@ -12,11 +13,30 @@ class CheckStatus:
         c.close()
         conn.close()
         return res
+        except sqlite3.Error as error:
+            print('*** Failed to execute a query.', error)
+        finally:
+            if conn:
+            conn.close()
+            print('SQLite connection is closed')
 
     def clear_old_data(self):
+        try:
         conn = sqlite3.connect(CONF['CSV_STATUS_DB'])
         c = conn.cursor()
-
+        c.execute("""select file_name, scheme, file_num, row_count from csv_rows
+                        where job_id = ?
+                        and scheme = ?
+                        and file_name = ?
+                        order by file_num desc""", [self.job_id, scheme, file_name])
+        res = c.fetchone()
+        return res
+        except sqlite3.Error as error:
+            print('*** Failed to execute a query.', error)
+        finally:
+            if conn:
+            conn.close()
+            print('SQLite connection is closed')
         # 일주일 이전의 datetime 계산
         one_week_ago = datetime.now() - timedelta(days=7)
 
