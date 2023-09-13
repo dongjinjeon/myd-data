@@ -1432,41 +1432,43 @@ class ConvertToCSV:
         return len(df_sep), file_num
 
     def check_file_row(self, scheme, file_name):
+        conn = None
         try:
-        conn = sqlite3.connect(CONF['CSV_STATUS_DB'])
-        c = conn.cursor()
-        c.execute("""select file_name, scheme, file_num, row_count from csv_rows 
-                        where job_id = ? 
-                        and scheme = ?
-                        and file_name = ?
-                        order by file_num desc""", [self.job_id, scheme, file_name])
-        res = c.fetchone()
-        c.close()
-        conn.close()
-        return res
-        except sqlite3.Error as error:
-        print('*** Failed to execute a query.', error)
-        finally:
-        if conn:
+            conn = sqlite3.connect(CONF['CSV_STATUS_DB'])
+            c = conn.cursor()
+            c.execute("""select file_name, scheme, file_num, row_count from csv_rows 
+                            where job_id = ? 
+                            and scheme = ?
+                            and file_name = ?
+                            order by file_num desc""", [self.job_id, scheme, file_name])
+            res = c.fetchone()
+            c.close()
             conn.close()
-            print('SQLite connection is closed') 
+            return res
+        except sqlite3.Error as error:
+            print('*** Failed to execute a query.', error)
+        finally:
+            if conn:
+                conn.close()
+                print('SQLite connection is closed') 
 
     def set_csv_rows(self, scheme, file_name, file_num, row_count):
+        conn = None
         try:
-        conn = sqlite3.connect(CONF['CSV_STATUS_DB'])
-        c = conn.cursor()
-        current_datetime = datetime.now()
-        c.execute("""INSERT OR REPLACE INTO csv_rows (job_id, scheme, file_name, file_num, row_count, update_datetime) 
-                        VALUES (?, ?, ?, ?, ?, ?);""", [self.job_id, scheme, file_name, file_num, row_count, current_datetime])
-        conn.commit()
-        c.close()
-        conn.close()
-        except sqlite3.Error as error:
-        print('*** Failed to execute a query.', error)
-        finally:
-        if conn:
+            conn = sqlite3.connect(CONF['CSV_STATUS_DB'])
+            c = conn.cursor()
+            current_datetime = datetime.now()
+            c.execute("""INSERT OR REPLACE INTO csv_rows (job_id, scheme, file_name, file_num, row_count, update_datetime) 
+                            VALUES (?, ?, ?, ?, ?, ?);""", [self.job_id, scheme, file_name, file_num, row_count, current_datetime])
+            conn.commit()
+            c.close()
             conn.close()
-            print('SQLite connection is closed')
+        except sqlite3.Error as error:
+            print('*** Failed to execute a query.', error)
+        finally:
+            if conn:
+                conn.close()
+                print('SQLite connection is closed')
 
     def has_array(self, key, arr):
         return key in arr and len(arr[key]) > 0
